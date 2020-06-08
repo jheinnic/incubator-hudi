@@ -16,12 +16,13 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 
-SCRIPT_PATH=$(cd `dirname $0`; pwd)
-# set up root directory
-WS_ROOT=`dirname $SCRIPT_PATH`
-# shut down cluster
-HUDI_WS=${WS_ROOT} docker-compose -f ${SCRIPT_PATH}/compose/docker-compose_hadoop284_hive233_spark244.yml down
+# locate root directory
+SCRIPT_PATH=$(cd `dirname ${0}`; pwd)
+HUDI_WS=`dirname ${SCRIPT_PATH}`
 
-# remove houst mount directory
+# shut down cluster
+HUDI_WS=${HUDI_WS} docker-compose -f ${SCRIPT_PATH}/compose/docker-compose_hadoop284_hive233_spark244.yml down
+
+# remove host mount directory
 rm -rf /tmp/hadoop_data
 rm -rf /tmp/hadoop_name

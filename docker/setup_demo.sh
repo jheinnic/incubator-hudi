@@ -16,14 +16,26 @@
 #  See the License for the specific language governing permissions and
 # limitations under the License.
 
-SCRIPT_PATH=$(cd `dirname $0`; pwd)
-WS_ROOT=`dirname $SCRIPT_PATH`
+SCRIPT_PATH=$(cd `dirname ${0}`; pwd)
+HUDI_WS=`dirname ${SCRIPT_PATH}`
+
 # restart cluster
-HUDI_WS=${WS_ROOT} docker-compose -f ${SCRIPT_PATH}/compose/docker-compose_hadoop284_hive233_spark244.yml down
-HUDI_WS=${WS_ROOT} docker-compose -f ${SCRIPT_PATH}/compose/docker-compose_hadoop284_hive233_spark244.yml pull
+HUDI_WS=${HUDI_WS} docker-compose -f ${SCRIPT_PATH}/compose/docker-compose_hadoop284_hive233_spark244.yml down
+
+# We have hand modified the Docker templates therefore do not
+# want to have those modifications overwritten by an image pull.
+# HUDI_WS=${HUDI_WS} docker-compose -f ${SCRIPT_PATH}/compose/docker-compose_hadoop284_hive233_spark244.yml pull
+
 sleep 5
-HUDI_WS=${WS_ROOT} docker-compose -f ${SCRIPT_PATH}/compose/docker-compose_hadoop284_hive233_spark244.yml up -d
+HUDI_WS=${HUDI_WS} docker-compose -f ${SCRIPT_PATH}/compose/docker-compose_hadoop284_hive233_spark244.yml up -d
 sleep 15
 
+docker exec -it adhoc-1 mkdir -p /var/hoodie/ws/docker/demo
+docker cp ${SCRIPT_PATH}/setup_demo_container.sh adhoc-1:/var/hoodie/ws/docker/demo/setup_demo_container.sh
+docker exec -it adhoc-1 chmod 755 /var/hoodie/ws/docker/demo/setup_demo_container.sh
 docker exec -it adhoc-1 /bin/bash /var/hoodie/ws/docker/demo/setup_demo_container.sh
+
+docker exec -it adhoc-2 mkdir -p /var/hoodie/ws/docker/demo
+docker cp ${SCRIPT_PATH}/setup_demo_container.sh adhoc-2:/var/hoodie/ws/docker/demo/setup_demo_container.sh
+docker exec -it adhoc-2 chmod 755 /var/hoodie/ws/docker/demo/setup_demo_container.sh
 docker exec -it adhoc-2 /bin/bash /var/hoodie/ws/docker/demo/setup_demo_container.sh

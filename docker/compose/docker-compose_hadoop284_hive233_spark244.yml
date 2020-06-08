@@ -18,11 +18,11 @@ version: "3.3"
 services:
 
   namenode:
-    image: apachehudi/hudi-hadoop_2.8.4-namenode:latest
+    image: apachehudi/hudi-hadoop_2.8.5-namenode:latest
     hostname: namenode
     container_name: namenode
     environment:
-      - CLUSTER_NAME=hudi_hadoop284_hive232_spark244
+      - CLUSTER_NAME=hudi_hadoop285_hive233_spark245
     ports:
       - "50070:50070"
       - "8020:8020"
@@ -33,13 +33,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
- 
+
   datanode1:
-    image: apachehudi/hudi-hadoop_2.8.4-datanode:latest
+    image: apachehudi/hudi-hadoop_2.8.5-datanode:latest
     container_name: datanode1
     hostname: datanode1
     environment:
-      - CLUSTER_NAME=hudi_hadoop284_hive232_spark244
+      - CLUSTER_NAME=hudi_hadoop285_hive233_spark245
     env_file:
       - ./hadoop.env
     ports:
@@ -57,11 +57,11 @@ services:
       - namenode
 
   historyserver:
-    image: apachehudi/hudi-hadoop_2.8.4-history:latest
+    image: apachehudi/hudi-hadoop_2.8.5-history:latest
     hostname: historyserver
     container_name: historyserver
     environment:
-      - CLUSTER_NAME=hudi_hadoop284_hive232_spark244
+      - CLUSTER_NAME=hudi_hadoop285_hive233_spark245
     depends_on:
       - "namenode"
     links:
@@ -84,9 +84,9 @@ services:
       - hive-metastore-postgresql:/var/lib/postgresql
     hostname: hive-metastore-postgresql
     container_name: hive-metastore-postgresql
- 
+
   hivemetastore:
-    image: apachehudi/hudi-hadoop_2.8.4-hive_2.3.3:latest
+    image: apachehudi/hudi-hadoop_2.8.5-hive_2.3.3:latest
     hostname: hivemetastore
     container_name: hivemetastore
     links:
@@ -109,7 +109,7 @@ services:
       - "namenode"
 
   hiveserver:
-    image: apachehudi/hudi-hadoop_2.8.4-hive_2.3.3:latest
+    image: apachehudi/hudi-hadoop_2.8.5-hive_2.3.3:latest
     hostname: hiveserver
     container_name: hiveserver
     env_file:
@@ -124,11 +124,9 @@ services:
       - "hivemetastore"
       - "hive-metastore-postgresql"
       - "namenode"
-    volumes:
-      - ${HUDI_WS}:/var/hoodie/ws
 
   sparkmaster:
-    image: apachehudi/hudi-hadoop_2.8.4-hive_2.3.3-sparkmaster_2.4.4:latest
+    image: apachehudi/hudi-hadoop_2.8.5-hive_2.3.3-sparkmaster_2.4.5:latest
     hostname: sparkmaster
     container_name: sparkmaster
     env_file:
@@ -138,6 +136,8 @@ services:
       - "7077:7077"
     environment:
       - INIT_DAEMON_STEP=setup_spark
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
     links:
       - "hivemetastore"
       - "hiveserver"
@@ -145,7 +145,7 @@ services:
       - "namenode"
 
   spark-worker-1:
-    image: apachehudi/hudi-hadoop_2.8.4-hive_2.3.3-sparkworker_2.4.4:latest
+    image: apachehudi/hudi-hadoop_2.8.5-hive_2.3.3-sparkworker_2.4.5:latest
     hostname: spark-worker-1
     container_name: spark-worker-1
     env_file:
@@ -156,35 +156,112 @@ services:
       - "8081:8081"
     environment:
       - "SPARK_MASTER=spark://sparkmaster:7077"
+      - SPARK_WORKER_CORES=4
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
     links:
       - "hivemetastore"
       - "hiveserver"
       - "hive-metastore-postgresql"
       - "namenode"
+      - "kafka1"
 
   zookeeper:
-    image: 'bitnami/zookeeper:3.4.12-r68'
+    image: debezium/zookeeper:1.1
     hostname: zookeeper
     container_name: zookeeper
     ports:
-      - '2181:2181'
+     - 22181:2181
+     - 22888:2888
+     - 23888:3888
     environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
+     - ZOOKEEPER_CLIENT_PORT=2181
+     - ZOOKEEPER_SERVER_ID=1
+     - ZOOKEEPER_TICK_TIME=2000
+     - ZOOKEEPER_SYNC_LIMIT=2
+     - ZOOKEEPER_LOG4J_ROOT_LOGLEVEL=WARN
+    volumes:
+     - zk_log-data:/var/log/kafka
+     - zk_data-data:/var/lib/zookeeper/data
+     - zk_datalog-data:/var/lib/zookeeper/log
 
-  kafka:
-    image: 'bitnami/kafka:2.0.0'
-    hostname: kafkabroker
-    container_name: kafkabroker
+  kafka1:
+    image: confluentinc/cp-kafka:5.3.1
+    hostname: kafka1
+    container_name: kafka1
     ports:
-      - '9092:9092'
+     - 19092:19092
+    expose: [19092]
+    links:
+      - zookeeper
     environment:
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - ALLOW_PLAINTEXT_LISTENER=yes
+     - KAFKA_BROKER_ID=1
+     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+     - KAFKA_KAFKA_HOST_NAME=kafka1
+     - KAFKA_HOST_NAME=kafka1
+     - KAFKA_LOG4J_ROOT_LOGLEVEL=WARN
+     - KAFKA_TOOLS_LOG4J_LOGLEVEL=ERROR
+     - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+     - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,LISTENER_HOST://0.0.0.0:19092
+     - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka1:9092,LISTENER_HOST://localhost:19092
+     - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,LISTENER_HOST:PLAINTEXT
+     - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:5.3.1
+    hostname: schema-registry
+    container_name: schema-registry
+    ports:
+     - 28181:28181
+     - 28081:28081
+    environment:
+     - SCHEMA_REGISTRY_HOST_NAME=schema-registry
+     - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=PLAINTEXT://kafka1:9092
+     - SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL=zookeeper:2181
+     - SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL=PLAINTEXT
+     - SCHEMA_REGISTRY_LISTENERS=http://0.0.0.0:8081,http://0.0.0.0:28081
+     - SCHEMA_REGISTRY_ADVERTISED_LISTENERS=http://kafka1:8081,http://localhost:28081
+    links:
+     - zookeeper
+    volumes:
+     - kafka1-data:/var/lib/kafka/data
+
+  connect:
+    image: debezium/connect:1.1
+    hostname: connect
+    container_name: connect
+    ports:
+     - 28083:28083
+    links:
+     - kafka1
+     - schema-registry
+     - tpcc-postgres
+    environment:
+     - GROUP_ID=2
+     - BOOTSTRAP_SERVERS=kafka1:9092
+     - CONNECT_REST_HOSTNAME=localhost
+     - REST_PORT=28083
+     - CONNECT_REST_ADVERTISED_HOSTNAME=localhost
+     - REST_ADVERTISED_PORT=28083
+     - CONFIG_STORAGE_TOPIC=_my_connect_configs
+     - OFFSET_STORAGE_TOPIC=_my_connect_offsets
+     - STATUS_STORAGE_TOPIC=_my_connect_statuses
+     - CONNECT_CONFIG_TOPIC_REPLICATION_FACTOR=1
+     - CONNECT_OFFSET_TOPIC_REPLICATION_FACTOR=1
+     - CONNECT_STATUS_TOPIC_REPLICATION_FACTOR=1
+     - KEY_CONVERTER=io.confluent.connect.avro.AvroConverter
+     - CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL=http://schema-registry:8081
+     - VALUE_CONVERTER=io.confluent.connect.avro.AvroConverter
+     - CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL=http://schema-registry:8081
+     - LISTENERS=LISTENER_CONTAINERS://0.0.0.0:8083,LISTENER_HOST://0.0.0.0:28083
+     - ADVERTISED_LISTENERS=LISTENER_CONTAINERS://kafka1:8083,LISTENER_HOST://localhost:28083
+     - LISTENER_SECURITY_PROTOCOL_MAP=LISTENER_CONTAINERS:PLAINTEXT,LISTENER_HOST:PLAINTEXT
+#     - INTER_BROKER_LISTENER_NAME=LISTENER_CONTAINERS
 
   presto-coordinator-1:
     container_name: presto-coordinator-1
     hostname: presto-coordinator-1
-    image: apachehudi/hudi-hadoop_2.8.4-prestobase_0.217:latest
+    image: apachehudi/hudi-hadoop_2.8.5-prestobase_0.217:latest
     ports:
       - '8090:8090'
     environment:
@@ -196,14 +273,12 @@ services:
       - TERM=xterm
     links:
       - "hivemetastore"
-    volumes:
-      - ${HUDI_WS}:/var/hoodie/ws
     command: coordinator
 
   presto-worker-1:
       container_name: presto-worker-1
       hostname: presto-worker-1
-      image: apachehudi/hudi-hadoop_2.8.4-prestobase_0.217:latest
+      image: apachehudi/hudi-hadoop_2.8.5-prestobase_0.217:latest
       depends_on: ["presto-coordinator-1"]
       environment:
         - PRESTO_JVM_MAX_HEAP=512M
@@ -217,12 +292,10 @@ services:
         - "hiveserver"
         - "hive-metastore-postgresql"
         - "namenode"
-      volumes:
-        - ${HUDI_WS}:/var/hoodie/ws
       command: worker
 
   adhoc-1:
-    image: apachehudi/hudi-hadoop_2.8.4-hive_2.3.3-sparkadhoc_2.4.4:latest
+    image: apachehudi/hudi-hadoop_2.8.5-hive_2.3.3-sparkadhoc_2.4.5:latest
     hostname: adhoc-1
     container_name: adhoc-1
     env_file:
@@ -239,11 +312,9 @@ services:
       - "hive-metastore-postgresql"
       - "namenode"
       - "presto-coordinator-1"
-    volumes:
-      - ${HUDI_WS}:/var/hoodie/ws
 
   adhoc-2:
-    image: apachehudi/hudi-hadoop_2.8.4-hive_2.3.3-sparkadhoc_2.4.4:latest
+    image: apachehudi/hudi-hadoop_2.8.5-hive_2.3.3-sparkadhoc_2.4.5:latest
     hostname: adhoc-2
     container_name: adhoc-2
     env_file:
@@ -258,13 +329,28 @@ services:
       - "hive-metastore-postgresql"
       - "namenode"
       - "presto-coordinator-1"
+
+  tpcc-postgres:
+    image: debezium/example-postgres:1.1
+    hostname: tpcc-postgres
+    container_name: tpcc-postgres
+    ports:
+     - 25432:5432
+    environment:
+     - POSTGRES_USER=postgres
+     - POSTGRES_PASSWORD=postgres
     volumes:
-      - ${HUDI_WS}:/var/hoodie/ws
+     - tpcc-postgres-data:/var/lib/postgres/data
 
 volumes:
   namenode:
   historyserver:
   hive-metastore-postgresql:
+  zk_log-data:
+  zk_data-data:
+  zk_datalog-data:
+  kafka1-data:
+  tpcc-postgres-data:
 
 networks:
   default:
