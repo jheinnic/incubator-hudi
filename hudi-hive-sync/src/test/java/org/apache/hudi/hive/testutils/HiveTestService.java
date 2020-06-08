@@ -18,7 +18,7 @@
 
 package org.apache.hudi.hive.testutils;
 
-import org.apache.hudi.common.model.HoodieTestUtils;
+import org.apache.hudi.common.testutils.HoodieTestUtils;
 import org.apache.hudi.common.util.FileIOUtils;
 
 import org.apache.hadoop.conf.Configuration;
@@ -105,6 +105,7 @@ public class HiveTestService {
     executorService = Executors.newSingleThreadExecutor();
     tServer = startMetaStore(bindIP, metastorePort, serverConf);
 
+    serverConf.set("hive.in.test", "true");
     hiveServer = startHiveServer(serverConf);
 
     String serverHostname;
@@ -153,6 +154,7 @@ public class HiveTestService {
     File derbyLogFile = new File(localHiveDir, "derby.log");
     derbyLogFile.createNewFile();
     setSystemProperty("derby.stream.error.file", derbyLogFile.getPath());
+    setSystemProperty("derby.system.home", localHiveDir.getAbsolutePath());
     conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname,
         Files.createTempDirectory(System.currentTimeMillis() + "-").toFile().getAbsolutePath());
     conf.set("datanucleus.schema.autoCreateTables", "true");
